@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Folio con estatus</title>
+
+<style>
+
+body{
+    font-family: "Segoe UI", Arial, sans-serif;
+    background:#f2f4f7;
+    padding:40px;
+}
+
+/* grupo */
+.form-group{
+    display:flex;
+    flex-direction:column;
+    width:200px;
+}
+
+/* fila label + input */
+.row{
+    display:flex;
+    align-items:center;
+    gap:12px;
+}
+
+/* etiqueta */
+label{
+    font-weight:600;
+    font-size:18px;
+    color:#555;
+}
+
+/* input */
+.input-folio{
+    border:1px solid #d6d6d6;
+    border-radius:7px;
+    padding:8px 14px;
+    font-size:16px;
+    width:140px;
+    outline:none;
+    transition:all .25s ease;
+}
+
+/* texto debajo */
+.estado-texto{
+    font-size:13px;
+    margin-top:6px;
+    margin-left:110px;
+    font-weight:600;
+    letter-spacing:.3px;
+}
+
+/* ===== COLORES ===== */
+
+/* NO TIMBRADO */
+.no_timbrado{
+    background:#fff5cc;
+    border-color:#e2cb66;
+    color:#5c5400;
+}
+
+/* timbrado*/
+.timbrado{
+    background:#59ac6c;
+    border-color:#80a589;
+    color:#000000;
+}
+
+/* cancelado */
+.cancelado{
+    background:#e90909;
+    border-color:#dd0000;
+    color:#ffffff;
+    font-weight:bold;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="form-group">
+    <div class="row">
+        <label>Abono:</label>
+        <input id="folio" class="input-folio" type="text" value="CDBP819" readonly>
+    </div>
+
+<div id="estado" class="estado-texto"></div>
+
+
+</div>
+
+<script>
+
+
+let estatus = "cancelado";
+// opciones:
+// no_timbrado
+// timbrado
+// cancelado
+
+const input = document.getElementById("folio");
+const estadoTexto = document.getElementById("estado");
+
+
+input.classList.remove("no_timbrado","timbrado","cancelado");
+estadoTexto.classList.remove("no_timbrado-texto","timbrado-texto","cancelado-texto");
+
+switch(estatus){
+
+    case "timbrado":
+        input.classList.add("timbrado");
+        estadoTexto.classList.add("timbrado-texto");
+        estadoTexto.innerText = "Timbrado";
+    break;
+
+    case "cancelado":
+        input.classList.add("cancelado");
+        estadoTexto.classList.add("cancelado-texto");
+        estadoTexto.innerText = "Cancelado";
+    break;
+
+    default:
+        input.classList.add("no_timbrado");
+        estadoTexto.classList.add("no_timbrado-texto");
+        estadoTexto.innerText = "No timbrado";
+}
+
+</script>
+
+</body>
+</html>

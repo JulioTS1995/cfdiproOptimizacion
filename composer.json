@@ -1,0 +1,20 @@
+{
+    "name": "administrator/cfdipro",
+    "autoload": {
+        "psr-4": {
+            "Administrator\\Cfdipro\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "OmarFranco"
+        }
+    ],
+    "require": {
+        "php": ">=5.5.0",
+        "mpdf/mpdf": "^6.1",
+        "psr/log": "^1.0",
+        "psr/http-message": "1.0.*",
+        "setasign/fpdi": "^1.6"
+    }
+}

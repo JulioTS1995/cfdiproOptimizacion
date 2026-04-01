@@ -1,0 +1,36 @@
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: You must provide at least one recipient email address.
+Error al enviar el correo: SMTP connect() failed.
+Error al enviar el correo: SMTP connect() failed.
+Error al enviar el correo: SMTP connect() failed.
+Error al enviar el correo: SMTP connect() failed.
+Error al enviar el correo: 
+Error al enviar el correo: 
+Error al enviar el correo: 

@@ -1,0 +1,6 @@
+@ECHO OFF
+
+cd C:\TSRunCFDiWEB40_ROELCA
+
+C:\TSRunCFDiWEB40_ROELCA\TSRuncfdiWEB.exe -d 1 -v %1 -dbi %2
+

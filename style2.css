@@ -1,0 +1,24 @@
+*{
+   padding: 0;
+   margin: 0;
+   box-sizing: border-box;
+ }
+ p{
+	margin: 1em;
+}
+
+.cols {
+    height: 300px;
+}
+.col1 {
+    background-color: orange;
+    width: 50%;
+}
+.col2 {
+    background-color: skyblue;
+    width: 49%;
+}
+.col1,.col2 {
+    display: inline-block;
+    height: 100%;
+}

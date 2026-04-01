@@ -1,0 +1,93 @@
+<?php
+require_once('cnx_cfdi.php');
+require_once('lib_mpdf/pdf/mpdf.php');
+mysql_select_db($database_cfdi, $cnx_cfdi);
+
+mysql_query("SET NAMES 'utf8'");
+$prefijobd = $_GET['prefijodb'];
+if (!isset($_GET['prefijodb']) || empty($_GET['prefijodb'])) {
+    die("Falta el prefijo de la BD");
+}
+
+//Internalizo los parametros previo escape de caracteres especiales
+$prefijobd = @mysql_escape_string($_GET["prefijodb"]);
+
+//Reviso si existe el guion bajo en el prefijo y si no se lo agrego
+$pos = strpos($prefijobd, "_");
+
+if ($pos === false) {
+    $prefijobd = $prefijobd . "_";
+} 
+
+
+?>
+<html>
+  <head>
+    <title>Reporte Cuentas por Cobrar</title>
+    <meta name='viewport' content='width=device-width, initial-scale=1' charset='UTF-8'>
+	
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+	<meta charset="UTF-8">
+
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  </head>
+
+	<body>
+		<div class="col-md-8 col-md-offset-2">
+			<div id="encabezadoform">
+			  <h1>Estado de Cuenta 2</h1>
+			</div>
+			<br>
+			<center>
+			  <form method="post" action="reporte_estado_cuenta_cliente_l_excel.php" enctype="multipart/form-data" target="_blank">
+				
+				<div class="row">
+						<div class="col-md-6">
+							<div class="form-group">
+								<label>Cliente:</label>
+								<select class="form-control" name="cliente" id="cliente">
+									<option value="0">- Seleccione -</option>
+								<?php 
+									//Buscar Clientes 
+									$sql1 = "SELECT * FROM ".$prefijobd."clientes ORDER BY RazonSocial";
+									$res1 = mysql_query($sql1, $cnx_cfdi);
+									while($row1 = mysql_fetch_array($res1)){
+										$id_cliente = $row1['ID'];
+										$nom_cliente = $row1['RazonSocial'];
+								?>
+									<option value="<?php echo $id_cliente; ?>"><?php echo $nom_cliente; ?></option>
+								<?php
+									}
+								?>
+								</select>
+								<p class="help-block text-danger"></p>
+							</div>
+						</div>
+						<div class="col-md-6">
+							<div class="form-group">
+								<label>Moneda:</label>
+								<select class="form-control" name="moneda" id="moneda" placeholder='Selecciona la moneda'>
+								  <option value="PESOS">PESOS</option>
+								  <option value="DOLARES">DOLARES</option>
+								  <option value="AMBOS">AMBOS</option>
+								</select>
+								<p class="help-block text-danger"></p>
+							</div>
+						</div>
+					</div>
+					<input type="hidden" name="prefijodb" id="prefijodb" value='<?php echo $prefijobd; ?>'>
+					<button type="submit" name="btnEnviar" id="btnEnviar" value="Excel" class="btn btn-success">Excel</button>
+					<button type="submit" name="btnEnviar" id="btnEnviar" value="PDF" class="btn btn-danger">PDF</button>
+					
+				</div>
+				
+			  </form>
+			</center>
+		</div>
+	</body>
+</html>
+
+<!--  https://tractosoft-c4.com/cfdipro/reporte_estado_cuenta_cliente_l_fechas.php?prefijodb=PRBLUKAR_   -->

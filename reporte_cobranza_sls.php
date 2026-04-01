@@ -1,539 +1,482 @@
-<?php  
-//Recibir variables
-$prefijobd = $_POST['prefijodb'];
-$fechai = $_POST['txtDesde'];
-$fechaf = $_POST['txtHasta'];
-$cliente_id = $_POST['cliente'];
-$moneda = $_POST['moneda'];
-$boton = $_POST['btnEnviar'];
+<?php
+set_time_limit(3000);
+error_reporting(0);
+ini_set('memory_limit', '512M');
 
-require_once('cnx_cfdi.php');
-$anio_logs = date('Y');
-$mes_logs = date('m');
-$dia_logs = date('d');
-
-////////////////Agregar nombre del Mes
-
-
-//Seleccionar Mes letra
-  switch ("$mes_logs") {
-    case '01':
-        $mes2 = "Enero";
-      break;
-    case '02':
-        $mes2 = "Febrero";
-      break;
-    case '03':
-        $mes2 = "Marzo";
-      break;
-    case '04':
-        $mes2 = "Abril";
-      break;
-    case '05':
-        $mes2 = "Mayo";
-      break;
-    case '06':
-        $mes2 = "Junio";
-      break;
-    case '07':
-        $mes2 = "Julio";
-      break;
-    case '08':
-        $mes2 = "Agosto";
-      break;
-    case '09':
-        $mes2 = "Septiembre";
-      break;
-    case '10':
-        $mes2 = "Octubre";
-      break;
-    case '11':
-        $mes2 = "Noviembre";
-      break;
-    case '12':
-        $mes2 = "Diciembre";
-      break;
-    
-  } //Fin switch
-
-$fecha = $dia_logs." de ".$mes2." de ". $anio_logs;
-
-$fecha2 = $anio_logs."-".$mes_logs."-".$dia_logs;
-
-//Buscar datos para encabezado
-$resSQL0 = "SELECT * FROM ".$prefijobd."systemsettings";
-$runSQL0 = mysql_query($resSQL0, $cnx_cfdi);
-while($rowSQL0 = mysql_fetch_array($runSQL0)){
-	$RazonSocial = $rowSQL0['RazonSocial'];
-	//$RFC = $rowSQL0['RFC'];
-	//$CodigoPostal = $rowSQL0['CodigoPostal'];
-	//$Calle = $rowSQL0['Calle'];
-	//$NumeroExterior = $rowSQL0['NumeroExterior'];
-	//$Colonia = $rowSQL0['Colonia'];
-	//$Ciudad = $rowSQL0['Ciudad'];
-	//$Pais = $rowSQL0['Pais'];
-	//$Estado = $rowSQL0['Estado'];
-	//$Municipio = $rowSQL0['Municipio'];
-}
-
-if($cliente_id == 0){
-	$sql_cliente="";
-} else {
-	$sql_cliente=" AND CargoAFactura_RID = ".$cliente_id;
-}
-
-
-if($boton == 'PDF' and $moneda == 'PESOS'){
-
-
+require_once('cnx_cfdi2.php');
 require_once('lib_mpdf/pdf/mpdf.php');
-mysql_select_db($database_cfdi, $cnx_cfdi);
 
-mysql_query("SET NAMES 'utf8'");
-
-
-$html = '
-<header class="clearfix">
-      <meta charset="utf-8">
-      <div id="logo">
-		<p><strong>'.$RazonSocial.'</strong> 
-        <!--<img src="img/img.png" width="150px">-->
-      </div>
-      <h1 style="font-size: 20px;">Antigüedades saldos de clientes</h1>';
+mysqli_select_db($cnx_cfdi2, $database_cfdi);
+mysqli_query($cnx_cfdi2, "SET NAMES 'utf8'");
 
 
-       
-            $html .='<div id="company" class="clearfix">
-              
-            </div>
-            <div id="project">
-              <!-- <div style="font-size: 15px; text-align: right;"><span>'.$fecha.'</span></div>-->
-              
-              <div><br></div>
-              <div>
-                <table>
-                  <thead>
+$prefijobd   = isset($_POST['prefijodb']) ? trim($_POST['prefijodb']) : '';
+$fechai      = isset($_POST['txtDesde']) ? trim($_POST['txtDesde']) : '';
+$fechaf      = isset($_POST['txtHasta']) ? trim($_POST['txtHasta']) : '';
+$cliente_id  = isset($_POST['cliente']) ? (int)$_POST['cliente'] : 0;
+$moneda      = isset($_POST['moneda']) ? trim($_POST['moneda']) : 'PESOS';
+$boton       = isset($_POST['btnEnviar']) ? trim($_POST['btnEnviar']) : '';
+$esPortal    = isset($_POST['esPortal']) ? (int)$_POST['esPortal'] : 0;
+$solo_portal = (isset($_POST['solo_portal']) && $_POST['solo_portal'] == '1') ? 1 : 0;
+$modoReporte = isset($_POST['modo_reporte']) ? trim($_POST['modo_reporte']) : 'por_vencer';
+
+if ($prefijobd === '') {
+    die('Falta el prefijo de la BD');
+}
+
+if (strpos($prefijobd, "_") === false) {
+    $prefijobd .= "_";
+}
+
+if ($fechai === '' || $fechaf === '') {
+    die('Falta el rango de fechas');
+}
+
+if ($modoReporte !== 'por_vencer' && $modoReporte !== 'vencidos') {
+    $modoReporte = 'por_vencer';
+}
+
+$fechaHoy = date('Y-m-d');
+$fechaHoyTs = strtotime($fechaHoy);
+
+
+$RazonSocial = '';
+$resSQL0 = "SELECT RazonSocial, factura_portal FROM {$prefijobd}systemsettings LIMIT 1";
+$runSQL0 = mysqli_query($cnx_cfdi2, $resSQL0);
+if ($runSQL0 && mysqli_num_rows($runSQL0) > 0) {
+    $rowSQL0 = mysqli_fetch_assoc($runSQL0);
+    $RazonSocial = $rowSQL0['RazonSocial'];
+}
+
+// =========================
+// FILTROS
+// =========================
+$sql_cliente = ($cliente_id > 0) ? " AND a.CargoAFactura_RID = ".$cliente_id." " : "";
+
+if ($esPortal == 1) {
+    $ctnPortal = ($solo_portal == 1) ? ' AND a.EnPortal = "1" ' : ' AND a.EnPortal = "0" ';
+} else {
+    $ctnPortal = '';
+}
+
+// =========================
+// FUNCIONES
+// =========================
+function formatoMoneda($importe) {
+    return '$' . number_format((float)$importe, 2);
+}
+
+function obtenerRangoDias($fechaVence, $fechaHoyTs, $modoReporte) {
+    $venceTs = strtotime(substr($fechaVence, 0, 10));
+    if (!$venceTs) {
+        return 0;
+    }
+
+    if ($modoReporte === 'por_vencer') {
+        $dias = floor(($venceTs - $fechaHoyTs) / 86400);
+    } else {
+        $dias = floor(($fechaHoyTs - $venceTs) / 86400);
+    }
+
+    return (int)$dias;
+}
+
+function etiquetasColumnas($modoReporte) {
+    if ($modoReporte === 'vencidos') {
+        return array(
+            'titulo' => 'Antigüedades saldos de clientes - DÍAS VENCIDOS',
+            'c1' => 'DÍAS VENCIDOS<br>De 1 a 15',
+            'c2' => 'DÍAS VENCIDOS<br>De 16 a 30',
+            'c3' => 'DÍAS VENCIDOS<br>De 31 a 60',
+            'c4' => 'DÍAS VENCIDOS<br>De 61 a 90',
+            'c5' => 'DÍAS VENCIDOS<br>Más de 90'
+        );
+    }
+
+    return array(
+        'titulo' => 'Antigüedades saldos de clientes - DÍAS POR VENCER',
+        'c1' => 'DÍAS RESTANTES POR VENCER<br>De 1 a 15',
+        'c2' => 'DÍAS RESTANTES POR VENCER<br>De 16 a 30',
+        'c3' => 'DÍAS RESTANTES POR VENCER<br>De 31 a 60',
+        'c4' => 'DÍAS RESTANTES POR VENCER<br>De 61 a 90',
+        'c5' => 'DÍAS RESTANTES POR VENCER<br>Más de 90'
+    );
+}
+
+function obtenerClientesReporte($cnx_cfdi2, $prefijobd, $fechai, $fechaf, $sql_cliente, $moneda, $ctnPortal, $modoReporte, $fechaHoyTs) {
+    $clientes = array();
+
+    $sql = "
+        SELECT
+            a.CargoAFactura_RID,
+            b.RazonSocial
+        FROM {$prefijobd}factura a
+        INNER JOIN {$prefijobd}clientes b ON a.CargoAFactura_RID = b.ID
+        WHERE DATE(a.Creado) BETWEEN '".$fechai."' AND '".$fechaf."'
+          {$sql_cliente}
+          AND a.Moneda = '".mysqli_real_escape_string($cnx_cfdi2, $moneda)."'
+          AND a.CobranzaSaldo > 0
+          AND a.cCanceladoT IS NULL
+          {$ctnPortal}
+        GROUP BY a.CargoAFactura_RID, b.RazonSocial
+        ORDER BY b.RazonSocial
+    ";
+
+    $res = mysqli_query($cnx_cfdi2, $sql);
+    if (!$res) {
+        return $clientes;
+    }
+
+    while ($row = mysqli_fetch_assoc($res)) {
+        $idCliente = (int)$row['CargoAFactura_RID'];
+        $nombreCliente = $row['RazonSocial'];
+
+        $facturas = array();
+        $totales = array(
+            'saldo' => 0,
+            'r1' => 0,
+            'r2' => 0,
+            'r3' => 0,
+            'r4' => 0,
+            'r5' => 0
+        );
+
+        $sqlFacturas = "
+            SELECT
+                a.XFolio,
+                a.Moneda,
+                a.Vence,
+                a.Creado,
+                a.CobranzaSaldo
+            FROM {$prefijobd}factura a
+            WHERE a.CargoAFactura_RID = {$idCliente}
+              AND DATE(a.Creado) BETWEEN '".$fechai."' AND '".$fechaf."'
+              AND a.Moneda = '".mysqli_real_escape_string($cnx_cfdi2, $moneda)."'
+              AND a.CobranzaSaldo > 0
+              AND a.cCanceladoT IS NULL
+              {$ctnPortal}
+            ORDER BY a.Vence ASC
+        ";
+
+        $resFacturas = mysqli_query($cnx_cfdi2, $sqlFacturas);
+        if ($resFacturas) {
+            while ($fac = mysqli_fetch_assoc($resFacturas)) {
+                $dias = obtenerRangoDias($fac['Vence'], $fechaHoyTs, $modoReporte);
+
+                // Solo se toman registros positivos para el reporte correspondiente
+                if ($dias <= 0) {
+                    continue;
+                }
+
+                $saldo = (float)$fac['CobranzaSaldo'];
+
+                $r1 = 0;
+                $r2 = 0;
+                $r3 = 0;
+                $r4 = 0;
+                $r5 = 0;
+
+                if ($dias >= 1 && $dias <= 15) {
+                    $r1 = $saldo;
+                    $totales['r1'] += $saldo;
+                } elseif ($dias >= 16 && $dias <= 30) {
+                    $r2 = $saldo;
+                    $totales['r2'] += $saldo;
+                } elseif ($dias >= 31 && $dias <= 60) {
+                    $r3 = $saldo;
+                    $totales['r3'] += $saldo;
+                } elseif ($dias >= 61 && $dias <= 90) {
+                    $r4 = $saldo;
+                    $totales['r4'] += $saldo;
+                } elseif ($dias > 90) {
+                    $r5 = $saldo;
+                    $totales['r5'] += $saldo;
+                } else {
+                    continue;
+                }
+
+                $totales['saldo'] += $saldo;
+
+                $facturas[] = array(
+                    'FechaFactura' => substr($fac['Creado'], 0, 10),
+                    'Vence' => $fac['Vence'],
+                    'XFolio' => $fac['XFolio'],
+                    'Moneda' => $fac['Moneda'],
+                    'CobranzaSaldo' => $saldo,
+                    'r1' => $r1,
+                    'r2' => $r2,
+                    'r3' => $r3,
+                    'r4' => $r4,
+                    'r5' => $r5
+                );
+            }
+        }
+
+        // Si no trae facturas útiles para el modo elegido, no se agrega el cliente
+        if (count($facturas) > 0) {
+            $clientes[] = array(
+                'id_cliente' => $idCliente,
+                'nom_cliente' => $nombreCliente,
+                'facturas' => $facturas,
+                'totales' => $totales
+            );
+        }
+    }
+
+    return $clientes;
+}
+
+$labels = etiquetasColumnas($modoReporte);
+$clientesReporte = obtenerClientesReporte(
+    $cnx_cfdi2,
+    $prefijobd,
+    $fechai,
+    $fechaf,
+    $sql_cliente,
+    $moneda,
+    $ctnPortal,
+    $modoReporte,
+    $fechaHoyTs
+);
+
+// Totales generales
+$granTotalSaldo = 0;
+$granTotalR1 = 0;
+$granTotalR2 = 0;
+$granTotalR3 = 0;
+$granTotalR4 = 0;
+$granTotalR5 = 0;
+
+foreach ($clientesReporte as $clienteTmp) {
+    $granTotalSaldo += $clienteTmp['totales']['saldo'];
+    $granTotalR1 += $clienteTmp['totales']['r1'];
+    $granTotalR2 += $clienteTmp['totales']['r2'];
+    $granTotalR3 += $clienteTmp['totales']['r3'];
+    $granTotalR4 += $clienteTmp['totales']['r4'];
+    $granTotalR5 += $clienteTmp['totales']['r5'];
+}
+
+// =========================
+// PDF
+// =========================
+if ($boton == 'PDF') {
+
+    $html = '
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body { font-family: sans-serif; font-size: 11px; }
+            table { width: 100%; border-collapse: collapse; }
+            thead th {
+                background: #efefef;
+                border: 1px solid #ccc;
+                padding: 6px;
+                font-size: 10px;
+            }
+            tbody td {
+                border: 1px solid #ddd;
+                padding: 5px;
+                font-size: 10px;
+            }
+            .cliente-row td{
+                background:#f7f7f7;
+                font-weight:bold;
+                font-size:11px;
+            }
+            .total-row td{
+                font-weight:bold;
+                background:#fafafa;
+            }
+            .general-row td{
+                font-weight:bold;
+                background:#eaeaea;
+            }
+            .titulo{
+                text-align:center;
+                font-size:18px;
+                font-weight:bold;
+                margin-bottom:8px;
+            }
+            .subtitulo{
+                text-align:center;
+                font-size:11px;
+                margin-bottom:14px;
+            }
+        </style>
+    </head>
+    <body>';
+
+    $html .= '<div class="titulo">'.htmlspecialchars($RazonSocial, ENT_QUOTES, 'UTF-8').'</div>';
+    $html .= '<div class="subtitulo">'.$labels['titulo'].'<br>Moneda '.$moneda.' | Del '.$fechai.' al '.$fechaf.'</div>';
+
+    $html .= '
+    <table>
+        <thead>
+            <tr>
+                <th align="center">Emisión</th>
+                <th align="center">Vencimiento</th>
+                <th align="center">Folio</th>
+                <th align="center">Moneda</th>
+                <th align="right">Importe</th>
+                <th align="right">'.$labels['c1'].'</th>
+                <th align="right">'.$labels['c2'].'</th>
+                <th align="right">'.$labels['c3'].'</th>
+                <th align="right">'.$labels['c4'].'</th>
+                <th align="right">'.$labels['c5'].'</th>
+            </tr>
+        </thead>
+        <tbody>';
+
+    if (count($clientesReporte) == 0) {
+        $html .= '
+            <tr>
+                <td colspan="10" align="center">No se encontraron registros para los filtros seleccionados.</td>
+            </tr>';
+    } else {
+        foreach ($clientesReporte as $cliente) {
+            $html .= '
+            <tr class="cliente-row">
+                <td colspan="10" align="left">'.htmlspecialchars($cliente['nom_cliente'], ENT_QUOTES, 'UTF-8').'</td>
+            </tr>';
+
+            foreach ($cliente['facturas'] as $fac) {
+                $html .= '
+                <tr>
+                    <td align="center">'.$fac['FechaFactura'].'</td>
+                    <td align="center">'.$fac['Vence'].'</td>
+                    <td align="center">'.htmlspecialchars($fac['XFolio'], ENT_QUOTES, 'UTF-8').'</td>
+                    <td align="center">'.htmlspecialchars($fac['Moneda'], ENT_QUOTES, 'UTF-8').'</td>
+                    <td align="right">'.formatoMoneda($fac['CobranzaSaldo']).'</td>
+                    <td align="right">'.formatoMoneda($fac['r1']).'</td>
+                    <td align="right">'.formatoMoneda($fac['r2']).'</td>
+                    <td align="right">'.formatoMoneda($fac['r3']).'</td>
+                    <td align="right">'.formatoMoneda($fac['r4']).'</td>
+                    <td align="right">'.formatoMoneda($fac['r5']).'</td>
+                </tr>';
+            }
+
+            $html .= '
+            <tr class="total-row">
+                <td colspan="4" align="right">TOTALES</td>
+                <td align="right">'.formatoMoneda($cliente['totales']['saldo']).'</td>
+                <td align="right">'.formatoMoneda($cliente['totales']['r1']).'</td>
+                <td align="right">'.formatoMoneda($cliente['totales']['r2']).'</td>
+                <td align="right">'.formatoMoneda($cliente['totales']['r3']).'</td>
+                <td align="right">'.formatoMoneda($cliente['totales']['r4']).'</td>
+                <td align="right">'.formatoMoneda($cliente['totales']['r5']).'</td>
+            </tr>';
+        }
+
+        $html .= '
+        <tr class="general-row">
+            <td colspan="4" align="right">TOTALES GENERALES</td>
+            <td align="right">'.formatoMoneda($granTotalSaldo).'</td>
+            <td align="right">'.formatoMoneda($granTotalR1).'</td>
+            <td align="right">'.formatoMoneda($granTotalR2).'</td>
+            <td align="right">'.formatoMoneda($granTotalR3).'</td>
+            <td align="right">'.formatoMoneda($granTotalR4).'</td>
+            <td align="right">'.formatoMoneda($granTotalR5).'</td>
+        </tr>';
+    }
+
+    $html .= '
+        </tbody>
+    </table>
+    </body>
+    </html>';
+
+    $mpdf = new mPDF('c', 'LETTER-L');
+    $mpdf->setFooter('{DATE d-m-Y} / Tractosoft / Hoja {PAGENO}');
+    $mpdf->defaultfooterline = 0;
+    $mpdf->WriteHTML($html);
+    $mpdf->Output('Antiguedades_saldos_de_clientes.pdf', 'I');
+    exit;
+}
+
+// =========================
+// EXCEL
+// =========================
+if ($boton == 'Excel') {
+    header("Content-type: application/vnd.ms-excel; charset=UTF-8");
+    header("Content-Disposition: attachment; filename=Antiguedades_saldos_de_clientes_".date("H-i-s")."_".date("d-m-Y").".xls");
+    echo "\xEF\xBB\xBF";
+    ?>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+    <table border="1">
+        <thead>
+            <tr>
+                <th colspan="10"><?php echo htmlspecialchars($RazonSocial, ENT_QUOTES, 'UTF-8'); ?></th>
+            </tr>
+            <tr>
+                <th colspan="10"><?php echo $labels['titulo'].' Moneda '.$moneda.' DEL '.$fechai.' AL '.$fechaf; ?></th>
+            </tr>
+            <tr>
+                <th>Emisión</th>
+                <th>Vencimiento</th>
+                <th>Folio</th>
+                <th>Moneda</th>
+                <th>Importe</th>
+                <th><?php echo strip_tags(str_replace('<br>', ' ', $labels['c1'])); ?></th>
+                <th><?php echo strip_tags(str_replace('<br>', ' ', $labels['c2'])); ?></th>
+                <th><?php echo strip_tags(str_replace('<br>', ' ', $labels['c3'])); ?></th>
+                <th><?php echo strip_tags(str_replace('<br>', ' ', $labels['c4'])); ?></th>
+                <th><?php echo strip_tags(str_replace('<br>', ' ', $labels['c5'])); ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php if (count($clientesReporte) == 0) { ?>
+                <tr>
+                    <td colspan="10" align="center">No se encontraron registros para los filtros seleccionados.</td>
+                </tr>
+            <?php } else { ?>
+                <?php foreach ($clientesReporte as $cliente) { ?>
                     <tr>
-                      <th align="center" style="font-size: 12px;">Fecha</th>
-					  <th align="center" style="font-size: 12px;">Folio</th>
-					  <th align="center" style="font-size: 12px;">Moneda</th>
-                      <th align="right" style="font-size: 12px;">Importe</th>
-                      <!-- <th align="center" style="font-size: 12px;">Abonado</th>-->
-                      <th align="right" style="font-size: 12px;">Por Vencer</th>
-                      <th align="right" style="font-size: 12px;">De 1 a 30</th>
-                      <th align="right" style="font-size: 12px;">De 31 a 60</th>
-					  <th align="right" style="font-size: 12px;">De 61 a 90</th>
-                      <th align="right" style="font-size: 12px;">Más de 90</th>
+                        <td colspan="10"><strong><?php echo htmlspecialchars($cliente['nom_cliente'], ENT_QUOTES, 'UTF-8'); ?></strong></td>
                     </tr>
-                  </thead>
-                  <tbody>';
 
+                    <?php foreach ($cliente['facturas'] as $fac) { ?>
+                        <tr>
+                            <td><?php echo $fac['FechaFactura']; ?></td>
+                            <td><?php echo $fac['Vence']; ?></td>
+                            <td><?php echo htmlspecialchars($fac['XFolio'], ENT_QUOTES, 'UTF-8'); ?></td>
+                            <td><?php echo htmlspecialchars($fac['Moneda'], ENT_QUOTES, 'UTF-8'); ?></td>
+                            <td align="right"><?php echo formatoMoneda($fac['CobranzaSaldo']); ?></td>
+                            <td align="right"><?php echo formatoMoneda($fac['r1']); ?></td>
+                            <td align="right"><?php echo formatoMoneda($fac['r2']); ?></td>
+                            <td align="right"><?php echo formatoMoneda($fac['r3']); ?></td>
+                            <td align="right"><?php echo formatoMoneda($fac['r4']); ?></td>
+                            <td align="right"><?php echo formatoMoneda($fac['r5']); ?></td>
+                        </tr>
+                    <?php } ?>
 
-                
-                //Agrupar por cliente
-				$resSQL01 = "SELECT DISTINCT(CargoAFactura_RID) FROM ".$prefijobd."factura WHERE Date(Creado) Between '".$fechai."' And '".$fechaf."'".$sql_cliente." AND CobranzaSaldo > 0 AND cCanceladoT  IS NULL ORDER BY CargoAFactura_RID";
-				
-				$runSQL01 = mysql_query($resSQL01, $cnx_cfdi);
-				while($rowSQL01 = mysql_fetch_array($runSQL01)){
-					$id_cliente = $rowSQL01['CargoAFactura_RID'];
-					//Buscar nombre del cliente
-				
-				
-					$resSQL02 = "SELECT * FROM ".$prefijobd."Clientes WHERE ID = ".$id_cliente;
-					$runSQL02 = mysql_query($resSQL02, $cnx_cfdi);
-					while($rowSQL02 = mysql_fetch_array($runSQL02)){
-						$nom_cliente = $rowSQL02['RazonSocial'];
-					}
-				$html.='
                     <tr>
-                      <td colspan="9" align="left"><strong>'.$nom_cliente.'</strong></td>
-					</tr>
-				';
-				
-					$v_1_15_t = 0.00;
-					$v_16_30_t = 0.00;
-					$v_31_60_t = 0.00;
-					$v_61_90_t = 0.00;
-					$v_90_t = 0.00;
-					
-					//Buscar facturas del cliente
-					$resSQL03 = "SELECT * FROM ".$prefijobd."factura WHERE CobranzaSaldo > 0 AND cCanceladoT IS NULL AND CargoAFactura_RID = ".$id_cliente." AND Date(Creado) Between '".$fechai."' And '".$fechaf."' ORDER BY Vence ";
-					$runSQL03 = mysql_query($resSQL03, $cnx_cfdi);
-					while($rowSQL03 = mysql_fetch_array($runSQL03)){
-						$XFolio = $rowSQL03['XFolio'];
-						$moneda_t = $rowSQL03['Moneda'];
-						$Vence = $rowSQL03['Vence'];
-						$CobranzaSaldo_t = $rowSQL03['CobranzaSaldo'];
-						$CobranzaSaldo = "$".number_format($CobranzaSaldo_t,2);
-						$CobranzaAbonado_t = $rowSQL03['CobranzaAbonado'];
-						$CobranzaAbonado = "$".number_format($CobranzaAbonado_t,2);
-						//Poner saldo en columna correspondiente
-						$diff = abs(strtotime($fecha2) - strtotime($Vence));
-						$dias_vencimiento = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24)/ (60*60*24));
-						
-						if($dias_vencimiento >= 1 AND $dias_vencimiento <=15){
-							$v_1_15 = $CobranzaSaldo;
-							$aux_15 = $CobranzaSaldo_t;
-							$v_1_15_t = $v_1_15_t + $aux_15;
-							$aux_15_t ="$".number_format($v_1_15_t,2);
-						} else {
-							$v_1_15 = 0.00;
-							$aux_15 = 0.00;
-							$v_1_15_t = $v_1_15_t + $aux_15;
-							$aux_15_t ="$".number_format($v_1_15_t,2);
-						}
-						
-						if($dias_vencimiento >= 16 AND $dias_vencimiento <=30){
-							$v_16_30 = $CobranzaSaldo;
-							$aux_30 = $CobranzaSaldo_t;
-							$v_16_30_t = $v_16_30_t + $aux_30;
-							$aux_30_t ="$".number_format($v_16_30_t,2);
-						} else {
-							$v_16_30 = 0.00;
-							$aux_30 = 0.00;
-							$v_16_30_t = $v_16_30_t + $aux_30;
-							$aux_30_t ="$".number_format($v_16_30_t,2);
-						}
-						
-						if($dias_vencimiento >= 31 AND $dias_vencimiento <=60){
-							$v_31_60 = $CobranzaSaldo;
-							$aux_60 = $CobranzaSaldo_t;
-							$v_31_60_t = $v_31_60_t + $aux_60;
-							$aux_60_t ="$".number_format($v_31_60_t,2);
-						} else {
-							$v_31_60 = 0.00;
-							$aux_60 = 0.00;
-							$v_31_60_t = $v_31_60_t + $aux_60;
-							$aux_60_t ="$".number_format($v_31_60_t,2);
-						}
-						
-						if($dias_vencimiento >= 61 AND $dias_vencimiento <=90){
-							$v_61_90 = $CobranzaSaldo;
-							$aux_90 = $CobranzaSaldo_t;
-							$v_61_90_t = $v_61_90_t + $aux_90;
-							$aux_90_t ="$".number_format($v_61_90_t,2);
-						} else {
-							$v_61_90 = 0.00;
-							$aux_90 = 0.00;
-							$v_61_90_t = $v_61_90_t + $aux_90;
-							$aux_90_t ="$".number_format($v_61_90_t,2);
-						}
-						
-						if($dias_vencimiento > 90){
-							$v_90 = $CobranzaSaldo;
-							$aux_90m = $CobranzaSaldo_t;
-							$v_90_t = $v_90_t + $aux_90m;
-							$aux_90m_t ="$".number_format($v_90_t,2);
-						} else {
-							$v_90 = 0.00;
-							$aux_90m= 0.00;
-							$v_90_t = $v_90_t + $aux_90m;
-							$aux_90m_t ="$".number_format($v_90_t,2);
-						}
-						
-				
-                $html.='
-                    <tr>
-					  <td align="center">'.$Vence.'</td>
-                      <td align="center">'.$XFolio.'</td>
-					  <td align="center">'.$moneda_t.'</td>
-                      <td align="right">'.$CobranzaSaldo.'</td>
-                     <!--  <td align="center">'.$CobranzaAbonado.'</td>-->
-                      <td align="right" >'.$v_1_15.'</td>
-                      <td align="right" >'.$v_16_30.'</td>
-                      <td align="right" >'.$v_31_60.'</td>
-					  <td align="right" >'.$v_61_90.'</td>
-					  <td align="right" >'.$v_90.'</td>
-
+                        <td colspan="4" align="right"><strong>TOTALES</strong></td>
+                        <td align="right"><strong><?php echo formatoMoneda($cliente['totales']['saldo']); ?></strong></td>
+                        <td align="right"><strong><?php echo formatoMoneda($cliente['totales']['r1']); ?></strong></td>
+                        <td align="right"><strong><?php echo formatoMoneda($cliente['totales']['r2']); ?></strong></td>
+                        <td align="right"><strong><?php echo formatoMoneda($cliente['totales']['r3']); ?></strong></td>
+                        <td align="right"><strong><?php echo formatoMoneda($cliente['totales']['r4']); ?></strong></td>
+                        <td align="right"><strong><?php echo formatoMoneda($cliente['totales']['r5']); ?></strong></td>
                     </tr>
+                <?php } ?>
 
-                    ';
-					
-					} // FIN del WHILE $resSQL03 
-					
-					//////Agregar Totales por Clientes
-					
-					$resSQL04 = "SELECT SUM(CobranzaSaldo) AS Tsaldo FROM ".$prefijobd."factura WHERE CobranzaSaldo > 0 AND cCanceladoT IS NULL AND CargoAFactura_RID = ".$id_cliente." AND Date(Creado) Between '".$fechai."' And '".$fechaf."' ";
-					$runSQL04 = mysql_query($resSQL04, $cnx_cfdi);
-					while($rowSQL04 = mysql_fetch_array($runSQL04)){
-						$Tsaldo_t = $rowSQL04['Tsaldo'];
-						$Tsaldo = "$".number_format($Tsaldo_t,2);
-					}
-					
-					$resSQL05 = "SELECT SUM(CobranzaAbonado) AS Tabonado FROM ".$prefijobd."factura WHERE CobranzaSaldo > 0 AND cCanceladoT IS NULL AND CargoAFactura_RID = ".$id_cliente."Date(Creado) Between '".$fechai."' And '".$fechaf."' ";
-					$runSQL05 = mysql_query($resSQL04, $cnx_cfdi);
-					while($rowSQL04 = mysql_fetch_array($runSQL04)){
-						$Tabonado_t = $rowSQL04['Tabonado'];
-						$Tabonado = "$".number_format($Tabonado_t,2);
-					}
-					
-					$html.='     
-						<tr>
-						  <td colspan="9"><hr></td>
-						</tr>
-						<tr>
-						  <td colspan="3" align="right"><strong>TOTALES</strong></td>
-						  <td align="right"><strong>'.$Tsaldo.'</strong></td>
-						  <td align="right"><strong>'.$aux_15_t.'</strong></td>
-						  <td align="right"><strong>'.$aux_30_t.'</strong></td>
-						  <td align="right"><strong>'.$aux_60_t.'</strong></td>
-						  <td align="right"><strong>'.$aux_90_t.'</strong></td>
-						  <td align="right"><strong>'.$aux_90m_t.'</strong></td>
-						</tr>
-						<tr>
-						  <td colspan="9"><hr></td>
-						</tr>
-					';	
-                    
-                  } // FIN del WHILE $resSQL01
+                <tr>
+                    <td colspan="4" align="right"><strong>TOTALES GENERALES</strong></td>
+                    <td align="right"><strong><?php echo formatoMoneda($granTotalSaldo); ?></strong></td>
+                    <td align="right"><strong><?php echo formatoMoneda($granTotalR1); ?></strong></td>
+                    <td align="right"><strong><?php echo formatoMoneda($granTotalR2); ?></strong></td>
+                    <td align="right"><strong><?php echo formatoMoneda($granTotalR3); ?></strong></td>
+                    <td align="right"><strong><?php echo formatoMoneda($granTotalR4); ?></strong></td>
+                    <td align="right"><strong><?php echo formatoMoneda($granTotalR5); ?></strong></td>
+                </tr>
+            <?php } ?>
+        </tbody>
+    </table>
+    <?php
+    exit;
+}
 
-              $html.='     
-                   
-                  </tbody>
-                </table>  
-              </div>
-
-              <div><br></div>
-
-              ';
-
-$html.='</header>';
-
-
-$mpdf = new mPDF('c', 'A4');
-$css = file_get_contents('css/style_pdf.css');
-//$mpdf->SetHeader($url . "\n\n" . 'Page {PAGENO}');
-$mpdf->setFooter(' {DATE d-m-Y } / Tractosoft / Hoja {PAGENO}');
-//$mpdf->setFooter('Página {PAGENO}');
-$mpdf->defaultfooterline = 0;
-$mpdf->writeHTML($css, 1);
-$mpdf->writeHTML($html);
-$mpdf->Output('Antigüedades_saldos_de_clientes.pdf', 'I');
-
-//} elseif ($boton == 'Excel' and $moneda == 'PESOS') {
-} elseif ($boton == 'Excel') {	
-	header("Content-type: application/vnd.ms-excel");
-	$nombre="Antigüedades_saldos_de_clientes_".date("h:i:s")."_".date("d-m-Y").".xls";
-	header("Content-Disposition: attachment; filename=$nombre");
-	require_once('lib_mpdf/pdf/mpdf.php');
-
-	require_once('cnx_cfdi.php');
-	require_once('lib_mpdf/pdf/mpdf.php');
-	mysql_select_db($database_cfdi, $cnx_cfdi);
-
-	mysql_query("SET NAMES 'utf8'");
-	
-
-	?>
-	<meta http-equiv="Content-Type" content="text/html; charset= UTF-8">
-
-				<table class="table table-hover table-responsive table-condensed" border="1" id="table">
-					<thead>
-						<tr>
-							<th align="center" style="font-size: 12px;" colspan="8"><?php echo $RazonSocial.'</strong>' ?></th>
-						</tr>
-						<tr>
-							<th align="center" style="font-size: 12px;" colspan="8"><?php echo "Antigüedades saldos de clientes Moneda ".$moneda." DEL: ".$fechai." AL: ".$fechaf; ?></th>
-						</tr>
-						<tr>
-							<th align="center" style="font-size: 12px;">Fecha</th>
-							<th align="center" style="font-size: 12px;">Folio</th>
-							<th align="right" style="font-size: 12px;">Importe</th>
-							<!-- <th align="center" style="font-size: 12px;">Abonado</th>-->
-							<th align="right" style="font-size: 12px;">Por Vencer</th>
-							<th align="right" style="font-size: 12px;">De 1 a 30</th>
-							<th align="right" style="font-size: 12px;">De 31 a 60</th>
-							<th align="right" style="font-size: 12px;">De 61 a 90</th>
-							<th align="right" style="font-size: 12px;">Más de 90</th>
-						</tr>
-					</thead>
-					<tbody>	
-	<?php
-	
-	$TSaldot = 0.00;
-	$v_1_15_tt = 0.00;
-	$v_16_30_tt = 0.00;
-	$v_31_60_tt = 0.00;
-	$v_61_90_tt = 0.00;
-	$v_90_tt = 0.00;
-	
-				$resSQL01 = "SELECT a.CargoAFactura_RID, b.RazonSocial FROM ".$prefijobd."factura a Inner Join ".$prefijobd."clientes b On a.CargoAFactura_RID = b.Id WHERE Date(a.Creado) Between '".$fechai."' And '".$fechaf."'".$sql_cliente." AND a.Moneda='".$moneda."' GROUP BY a.CargoAFactura_RID, b.RazonSocial ORDER BY b.RazonSocial";
-
-				$runSQL01 = mysql_query($resSQL01, $cnx_cfdi);
-				while($rowSQL01 = mysql_fetch_array($runSQL01)){
-					$id_cliente = $rowSQL01['CargoAFactura_RID'];
-					//Buscar nombre del cliente
-					$resSQL02 = "SELECT * FROM ".$prefijobd."Clientes WHERE ID = ".$id_cliente;
-					$runSQL02 = mysql_query($resSQL02, $cnx_cfdi);
-					while($rowSQL02 = mysql_fetch_array($runSQL02)){
-						$nom_cliente = $rowSQL02['RazonSocial'];
-					}
-	?>
-			<tr>
-                <td colspan="8" align="left"><strong><?php echo $nom_cliente; ?></strong></td>
-			</tr>
-	<?php
-					$v_1_15_t = 0.00;
-					$v_16_30_t = 0.00;
-					$v_31_60_t = 0.00;
-					$v_61_90_t = 0.00;
-					$v_90_t = 0.00;
-					
-					//Buscar facturas del cliente
-					$resSQL03 = "SELECT * FROM ".$prefijobd."factura WHERE CobranzaSaldo > 0 AND cCanceladoT IS NULL AND CargoAFactura_RID = ".$id_cliente." AND Date(Creado) Between '".$fechai."' And '".$fechaf."' AND Moneda='".$moneda."' ORDER BY Vence ";
-					$runSQL03 = mysql_query($resSQL03, $cnx_cfdi);
-					while($rowSQL03 = mysql_fetch_array($runSQL03)){
-						$XFolio = $rowSQL03['XFolio'];
-						$moneda_t = $rowSQL03['Moneda'];
-						$Vence = $rowSQL03['Vence'];
-						$CobranzaSaldo_t = $rowSQL03['CobranzaSaldo'];
-						$TSaldot = $TSaldot + $CobranzaSaldo_t;
-						$CobranzaSaldo = "$".number_format($CobranzaSaldo_t,2);
-						$CobranzaAbonado_t = $rowSQL03['CobranzaAbonado'];
-						$CobranzaAbonado = "$".number_format($CobranzaAbonado_t,2);
-						//Poner saldo en columna correspondiente
-						$diff = abs(strtotime($fecha2) - strtotime($Vence));
-						$dias_vencimiento = floor(($diff - $years * 365*60*60*24 - $months*30*60*60*24)/ (60*60*24));
-						
-						if($dias_vencimiento >= 1 AND $dias_vencimiento <=15){
-							$v_1_15 = $CobranzaSaldo;
-							$aux_15 = $CobranzaSaldo_t;
-							$v_1_15_t = $v_1_15_t + $aux_15;
-							$v_1_15_tt = $v_1_15_tt + $aux_15;
-							$aux_15_t ="$".number_format($v_1_15_t,2);
-						} else {
-							$v_1_15 = 0.00;
-							$aux_15 = 0.00;
-							$v_1_15_t = $v_1_15_t + $aux_15;
-							$aux_15_t ="$".number_format($v_1_15_t,2);
-						}
-						
-						if($dias_vencimiento >= 16 AND $dias_vencimiento <=30){
-							$v_16_30 = $CobranzaSaldo;
-							$aux_30 = $CobranzaSaldo_t;
-							$v_16_30_t = $v_16_30_t + $aux_30;
-							$v_16_30_tt = $v_16_30_tt + $aux_30;
-							$aux_30_t ="$".number_format($v_16_30_t,2);
-						} else {
-							$v_16_30 = 0.00;
-							$aux_30 = 0.00;
-							$v_16_30_t = $v_16_30_t + $aux_30;
-							$aux_30_t ="$".number_format($v_16_30_t,2);
-						}
-						
-						if($dias_vencimiento >= 31 AND $dias_vencimiento <=60){
-							$v_31_60 = $CobranzaSaldo;
-							$aux_60 = $CobranzaSaldo_t;
-							$v_31_60_t = $v_31_60_t + $aux_60;
-							$v_31_60_tt = $v_31_60_tt + $aux_60;
-							$aux_60_t ="$".number_format($v_31_60_t,2);
-						} else {
-							$v_31_60 = 0.00;
-							$aux_60 = 0.00;
-							$v_31_60_t = $v_31_60_t + $aux_60;
-							$aux_60_t ="$".number_format($v_31_60_t,2);
-						}
-						
-						if($dias_vencimiento >= 61 AND $dias_vencimiento <=90){
-							$v_61_90 = $CobranzaSaldo;
-							$aux_90 = $CobranzaSaldo_t;
-							$v_61_90_t = $v_61_90_t + $aux_90;
-							$v_61_90_tt = $v_61_90_tt + $aux_90;
-							$aux_90_t ="$".number_format($v_61_90_t,2);
-						} else {
-							$v_61_90 = 0.00;
-							$aux_90 = 0.00;
-							$v_61_90_t = $v_61_90_t + $aux_90;
-							$aux_90_t ="$".number_format($v_61_90_t,2);
-						}
-						
-						if($dias_vencimiento > 90){
-							$v_90 = $CobranzaSaldo;
-							$aux_90m = $CobranzaSaldo_t;
-							$v_90_t = $v_90_t + $aux_90m;
-							$v_90_tt = $v_90_tt + $aux_90m;
-							$aux_90m_t ="$".number_format($v_90_t,2);
-						} else {
-							$v_90 = 0.00;
-							$aux_90m= 0.00;
-							$v_90_t = $v_90_t + $aux_90m;
-							$aux_90m_t ="$".number_format($v_90_t,2);
-						}
-						
-	?>
-					<tr>
-					  <td align="center"><?php echo $Vence; ?></td>
-                      <td align="center"><?php echo $XFolio; ?></td>
-                      <td align="right"><?php echo $CobranzaSaldo; ?></td>
-                     <!--  <td align="center">'.$CobranzaAbonado.'</td>-->
-                      <td align="right" ><?php echo $v_1_15; ?></td>
-                      <td align="right" ><?php echo $v_16_30; ?></td>
-                      <td align="right" ><?php echo $v_31_60; ?></td>
-					  <td align="right" ><?php echo $v_61_90; ?></td>
-					  <td align="right" ><?php echo $v_90; ?></td>
-
-                    </tr>
-	<?php	
-					} // FIN del WHILE $resSQL03 
-					
-					//////Agregar Totales por Clientes
-					
-					$resSQL04 = "SELECT SUM(CobranzaSaldo) AS Tsaldo FROM ".$prefijobd."factura WHERE CobranzaSaldo > 0 AND cCanceladoT IS NULL AND CargoAFactura_RID = ".$id_cliente." AND Date(Creado) Between '".$fechai."' And '".$fechaf."' AND Moneda='".$moneda."'";
-					$runSQL04 = mysql_query($resSQL04, $cnx_cfdi);
-					while($rowSQL04 = mysql_fetch_array($runSQL04)){
-						$Tsaldo_t = $rowSQL04['Tsaldo'];
-						$Tsaldo = "$".number_format($Tsaldo_t,2);
-					}
-					
-					$resSQL05 = "SELECT SUM(CobranzaAbonado) AS Tabonado FROM ".$prefijobd."factura WHERE CobranzaSaldo > 0 AND cCanceladoT IS NULL AND CargoAFactura_RID = ".$id_cliente."Date(Creado) Between '".$fechai."' And '".$fechaf."' ";
-					$runSQL05 = mysql_query($resSQL04, $cnx_cfdi);
-					while($rowSQL04 = mysql_fetch_array($runSQL04)){
-						$Tabonado_t = $rowSQL04['Tabonado'];
-						$Tabonado = "$".number_format($Tabonado_t,2);
-					}	
-	?>
-						
-						<tr>
-						  <td colspan="2" align="right"><strong>SUMAS</strong></td>
-						  <td align="right"><strong><?php echo $Tsaldo; ?></strong></td>
-						  <td align="right"><strong><?php echo $aux_15_t; ?></strong></td>
-						  <td align="right"><strong><?php echo $aux_30_t; ?></strong></td>
-						  <td align="right"><strong><?php echo $aux_60_t; ?></strong></td>
-						  <td align="right"><strong><?php echo $aux_90_t; ?></strong></td>
-						  <td align="right"><strong><?php echo $aux_90m_t; ?></strong></td>
-						</tr>
-						
-	<?php
-	}
-	
-	$TSaldots = "$".number_format($TSaldot,2);
-	$v_1_15_tts = "$".number_format($v_1_15_tt,2);
-	$v_16_30_tts = "$".number_format($v_16_30_tt,2);
-	$v_31_60_tts = "$".number_format($v_31_60_tt,2);
-	$v_61_90_tts = "$".number_format($v_61_90_tt,2);
-	$v_90_tts = "$".number_format($v_90_tt,2);
-	
-
-//http://localhost/cfdipro/reporte_cobranza_sls.php?prefijodb=sls_
-
-?>
-
-						<tr>
-						  <td colspan="2" align="right"><strong>TOTALES</strong></td>
-						  <td align="right"><strong><?php echo $TSaldots; ?></strong></td>
-						  <td align="right"><strong><?php echo $v_1_15_tts; ?></strong></td>
-						  <td align="right"><strong><?php echo $v_16_30_tts; ?></strong></td>
-						  <td align="right"><strong><?php echo $v_31_60_tts; ?></strong></td>
-						  <td align="right"><strong><?php echo $v_61_90_tts; ?></strong></td>
-						  <td align="right"><strong><?php echo $v_90_tts; ?></strong></td>
-						</tr>
-
-				</tbody>
-             </table>  
-      
-<?php 
-
-
-
-	}
+die('Acción no válida');
 ?>

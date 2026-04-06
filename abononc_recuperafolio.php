@@ -103,15 +103,15 @@ while($rowSQL25 = mysqli_fetch_array($runSQL25)){
 	//$Folio = $rowSQL25['folio'];
 }
 //echo 'Folio'. $Folio;
+//die ($msgerrorcdp);
 
 //Buscar datos del INI en la tabla zzzlogtablas para revisar si ya se mando timbrar 
 $resSQL0 = "SELECT * FROM basdb.".$prefijobd."zzzlogtablas WHERE ID='".$idnc."';";
 $runSQL0 = mysqli_query($cnx_cfdi2, $resSQL0);
 $noregistros = intval(mysqli_num_rows($runSQL0));
 
-if ($msgerrorcdp=='Folio previamente utilizado.'){  //Revisa si el folio esta previamente timbrado para recuperar desde forsedi
+if ($msgerrorcdp =='Folio previamente utilizado.' || $msgerrorcdp == 'El comprobante ya existe en la base de datos'){  //Revisa si el folio esta previamente timbrado para recuperar desde forsedi
 	//echo $msgerrorfactura;
-
 	//Busca en FORSEDI si el archivo se timbro';
 	//Busca si el archivo esta timbrado para recuperar desde el XML
 	$resSQL06 = "SELECT * FROM basdb.".$prefijobd."systemsettings";
@@ -137,28 +137,32 @@ if ($msgerrorcdp=='Folio previamente utilizado.'){  //Revisa si el folio esta pr
 			$Serie = $rowSQL07['seriefiscal'];
 		}
 	} else {
-		$resSQL07 = "SELECT a.folio, b.seriefiscal FROM basdb.{$prefijobd}abonos a INNER JOIN basdb.{$prefijobd}oficinas b 
+		$resSQL07 = "SELECT a.folio, b.seriefiscal, a.XFolio FROM basdb.{$prefijobd}abonos a INNER JOIN basdb.{$prefijobd}oficinas b 
 		ON a.Oficina_RID = b.id WHERE a.id=".$idnc."";
 		$runSQL07 = mysqli_query($cnx_cfdi2, $resSQL07);
 		while($rowSQL07 = mysqli_fetch_array($runSQL07)){
 			$Folio = $rowSQL07['folio'];
 			$Serie = $rowSQL07['seriefiscal'];
+			$XFolio = $rowSQL07['XFolio'];
 		}
 	}
-				
+	//die ($Folio.$Serie);
+	
 	if ($Multi=='0'){
 		$RfcEmisor = $Rfc1;
 	}else{
 		$RfcEmisor = $Rfc2;
 	}
 	
-			
+	
 	//$resSQL08 = "SELECT * FROM tractosoftprb.documentos";
 	$resSQL08 = "SELECT * FROM tractosoft.documentos WHERE rfc_emisor='".$RfcEmisor."' And serie='".$Serie."' and folio=".$Folio."";
 	//echo $resSQL08;
 	$runSQL08 = mysqli_query($cnx_cfdi2, $resSQL08);	
-	$bandtimbrado = intval(mysqli_num_rows($runSQL08));
+	$bandtimbrado = ($usuario == 'prodigia@tractosoft.com' && $phpTimbrado == 'notaCredito1_prodigia.php' || $msgerrorcdp == 'El comprobante ya existe en la base de datos') ? 1 : intval(mysqli_num_rows($runSQL08));
 	
+	
+	//die('entro');
 	if ($bandtimbrado>0){
 		$resSQL000 = "Select vchar From basdb.".$prefijobd."parametro Where id2='104'";
 		$runSQL000 = mysqli_query($cnx_cfdi2, $resSQL000);
@@ -184,7 +188,8 @@ if ($msgerrorcdp=='Folio previamente utilizado.'){  //Revisa si el folio esta pr
 		//str_replace("\\", '//', $RutaBMP);
 
 		//echo $RutaBMP;
-		$RutaXml.= '\\NC'.$Serie.$Folio .'='. $Serie.'-'.$Folio .'.xml';
+		$RutaXml.= '\\NC'.$XFolio.'='. $Serie.'-'.$Folio .'.xml';
+		//die($RutaXml);
 		
 		if (file_exists($RutaXml)){
 			

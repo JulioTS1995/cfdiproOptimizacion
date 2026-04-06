@@ -7,7 +7,7 @@ set_time_limit(300);
 require_once('lib_mpdf/pdf/mpdf.php');
 require_once('cnx_cfdi2.php');
 
-if (!isset($_GET['prefijodb']) || empty($_GET['prefijodb'])) {
+if (!isset($_GET['prefijo']) || empty($_GET['prefijo'])) {
     die("Falta el prefijo de la BD");
 }
 

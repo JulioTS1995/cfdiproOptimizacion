@@ -493,7 +493,7 @@ $html = '
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Vale de combustible</title>
+    <title>Vale de '.$nombreDoc.'</title>
     <style>
         body {
             font-family: Arial, Helvetica, sans-serif;

@@ -225,7 +225,7 @@
 				$mail->SMTPAuth = true;                               // Enable SMTP authentication
 				$mail->Username = $v_username;                 // SMTP username
 				$mail->Password = $v_pass;                           // SMTP password
-				$mail->SMTPSecure = '';                            // Enable TLS encryption, `ssl` also accepted
+				$mail->SMTPSecure = 'ssl';                            // Enable TLS encryption, `ssl` also accepted
 				$mail->Port = $v_port;                                    // TCP port to connect to
 				$mail->IsHTML(true);
 

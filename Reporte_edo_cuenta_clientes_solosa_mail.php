@@ -192,13 +192,14 @@
 				// CONFIGURACIÓN PHPMAILER /////////////////////////
 
 
-				$mail->CharSet = 'UTF-8';
+				$v_port = '465'; //TEMPORAL 
+				//$mail->CharSet = 'UTF-8';
 				$mail->isSMTP();                                      // Set mailer to use SMTP
 				$mail->Host = $v_host;  					  // Specify main and backup SMTP servers
 				$mail->SMTPAuth = true;                               // Enable SMTP authentication
 				$mail->Username = $v_username;                 // SMTP username
 				$mail->Password = $v_pass;                           // SMTP password
-				$mail->SMTPSecure = '';                            // Enable TLS encryption, `ssl` also accepted
+				$mail->SMTPSecure = 'ssl';                            // Enable TLS encryption, `ssl` also accepted
 				$mail->Port = $v_port;                                    // TCP port to connect to
 				$mail->IsHTML(true);
 

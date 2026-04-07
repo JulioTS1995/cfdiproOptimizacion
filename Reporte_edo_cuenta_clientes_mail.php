@@ -215,7 +215,7 @@
 			
 		
 			$mail = new PHPMailer();
-
+ 
 				// CONFIGURACIÓN PHPMAILER /////////////////////////
 
 				$v_port = '465'; //TEMPORAL 

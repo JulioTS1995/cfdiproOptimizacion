@@ -188,7 +188,7 @@
 			//echo "<br>MailF: ".$v_mail_from;
 		
 			$mail = new PHPMailer();
-
+ 
 				// CONFIGURACIÓN PHPMAILER /////////////////////////
 
 

@@ -217,7 +217,7 @@
 			$mail = new PHPMailer();
  
 				// CONFIGURACIÓN PHPMAILER /////////////////////////
-
+ 
 				$v_port = '465'; //TEMPORAL 
 				//$mail->CharSet = 'UTF-8';
 				$mail->isSMTP();                                      // Set mailer to use SMTP
